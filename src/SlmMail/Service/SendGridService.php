@@ -74,18 +74,18 @@ class SendGridService extends AbstractMailService
         );
 
         foreach ($message->getTo() as $address) {
-            $parameters['to'][] = $address->toString();
+            $parameters['to'][] = $address->getEmail();
         }
 
         foreach ($message->getBcc() as $address) {
-            $parameters['bcc'][] = $address->toString();
+            $parameters['bcc'][] = $address->getEmail();
         }
 
         $replyTo = $message->getReplyTo();
         if (count($replyTo) > 1) {
             throw new Exception\RuntimeException('SendGrid has only support for one Reply-To address');
         } elseif (count($replyTo)) {
-            $parameters['replyto'] = $replyTo->rewind()->toString();
+            $parameters['replyto'] = $replyTo->rewind()->getEmail();
         }
 
         if ($message instanceof SendGridMessage) {
@@ -94,7 +94,7 @@ class SendGridService extends AbstractMailService
             }
         }
 
-        $client = $this->prepareHttpClient('/messages', $parameters);
+        $client = $this->prepareHttpClient('/mail.send.json', $parameters);
 
         // Eventually add files. This cannot be done before prepareHttpClient call because prepareHttpClient
         // reset all parameters (response, request...), therefore we would loose the file upload
@@ -122,7 +122,7 @@ class SendGridService extends AbstractMailService
     {
         $parameters = array('date' => $date, 'start_date' => $startDate, 'end_date' => $endDate, 'aggregate' => (int)$aggregate);
 
-        $response = $this->prepareHttpClient('stats.get.json', $parameters)
+        $response = $this->prepareHttpClient('/stats.get.json', $parameters)
                          ->send();
 
         return $this->parseResponse($response);
@@ -151,7 +151,7 @@ class SendGridService extends AbstractMailService
         $parameters = array('date' => $date, 'days' => $days, 'start_date' => $startDate, 'end_date' => $endDate,
                             'email' => $email, 'limit' => $limit, 'offset' => $offset);
 
-        $response = $this->prepareHttpClient('bounces.get.json', $parameters)
+        $response = $this->prepareHttpClient('/bounces.get.json', $parameters)
                          ->send();
 
         return $this->parseResponse($response);
@@ -169,7 +169,7 @@ class SendGridService extends AbstractMailService
     {
         $parameters = array('start_date' => $startDate, 'end_date' => $endDate, 'email' => $email);
 
-        $response = $this->prepareHttpClient('bounces.delete.json', $parameters)
+        $response = $this->prepareHttpClient('/bounces.delete.json', $parameters)
                          ->send();
 
         return $this->parseResponse($response);
@@ -184,7 +184,7 @@ class SendGridService extends AbstractMailService
     {
         $parameters = array('start_date' => $startDate, 'end_date' => $endDate);
 
-        $response = $this->prepareHttpClient('bounces.count.json', $parameters)
+        $response = $this->prepareHttpClient('/bounces.count.json', $parameters)
                          ->send();
 
         return $this->parseResponse($response);
@@ -213,7 +213,7 @@ class SendGridService extends AbstractMailService
         $parameters = array('date' => $date, 'days' => $days, 'start_date' => $startDate, 'end_date' => $endDate,
                             'email' => $email, 'limit' => $limit, 'offset' => $offset);
 
-        $response = $this->prepareHttpClient('spamreports.get.json', $parameters)
+        $response = $this->prepareHttpClient('/spamreports.get.json', $parameters)
                          ->send();
 
         return $this->parseResponse($response);
@@ -227,7 +227,7 @@ class SendGridService extends AbstractMailService
      */
     public function deleteSpamReport($email = '')
     {
-        $response = $this->prepareHttpClient('spamreports.delete.json', array('email' => $email))
+        $response = $this->prepareHttpClient('/spamreports.delete.json', array('email' => $email))
                          ->send();
 
         return $this->parseResponse($response);
@@ -273,7 +273,7 @@ class SendGridService extends AbstractMailService
      */
     public function deleteBlock($email)
     {
-        $response = $this->prepareHttpClient('blocks.delete', array('email' => $email))
+        $response = $this->prepareHttpClient('/blocks.delete', array('email' => $email))
                          ->send();
 
         return $this->parseResponse($response);
@@ -297,8 +297,6 @@ class SendGridService extends AbstractMailService
 
     /**
      * @param  HttpResponse $response
-     * @throws Exception\InvalidCredentialsException
-     * @throws Exception\ValidationErrorException
      * @throws Exception\RuntimeException
      * @return array
      */
@@ -310,15 +308,22 @@ class SendGridService extends AbstractMailService
             return $result;
         }
 
-        switch ($response->getStatusCode()) {
-            case 401:
-                throw new Exception\InvalidCredentialsException('Authentication error: missing or incorrect API Key header');
-            case 422:
-                throw new Exception\ValidationErrorException($result['Message'], $result['ErrorCode']);
-            case 500:
-                throw new Exception\RuntimeException('Postmark server error, please try again');
-            default:
-                throw new Exception\RuntimeException('Unknown error during request to Postmark server');
+        // There is a 4xx error
+        if ($response->isClientError()) {
+            if (isset($result->errors) && is_array($result->errors)) {
+                $message = implode(', ', $result->errors);
+            } elseif (isset($result->error)) {
+                $message = $result->error;
+            } else {
+                $message = 'Unknown error';
+            }
+
+            throw new Exception\RuntimeException(sprintf(
+                'An error occured on SendGrid (http code %s), message: %s', $response->getStatusCode(), $message
+            ));
         }
+
+        // There is a 5xx error
+        throw new Exception\RuntimeException('SendGrid server error, please try again');
     }
 }

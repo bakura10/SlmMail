@@ -104,7 +104,7 @@ class PostageService extends AbstractMailService
         $response =  $this->prepareHttpClient('/send_message.json', $parameters)
                           ->send();
 
-        $data = $this->parseResponse($response)['message']['id'];
+        $data = $this->parseResponse($response);
 
         return array(
             'uid' => $parameters['uid'],
@@ -128,7 +128,8 @@ class PostageService extends AbstractMailService
         $response = $this->prepareHttpClient('/get_message_receipt.json', array('uid' => $uid))
                          ->send();
 
-        return $this->parseResponse($response)['message'];
+        $result = $this->parseResponse($response);
+        return $result['message'];
     }
 
     /**
@@ -157,7 +158,8 @@ class PostageService extends AbstractMailService
         $response = $this->prepareHttpClient('/get_metrics.json')
                          ->send();
 
-        return $this->parseResponse($response)['metrics'];
+        $result = $this->parseResponse($response);
+        return $result['metrics'];
     }
 
     /**
@@ -253,9 +255,13 @@ class PostageService extends AbstractMailService
 
         if ($result['response']['status'] !== 'ok') {
             if (isset($result['response']['message'])) {
-                throw new Exception\RuntimeException($result['response']['message']);
+                throw new Exception\RuntimeException(sprintf(
+                    'An error occurred on Postage, message: %s', $result['response']['message']
+                ));
             } else {
-                throw new Exception\RuntimeException('An error occurred on Postage: ' . $result['response']['status']);
+                throw new Exception\RuntimeException(sprintf(
+                    'An error occurred on Postage, status code: %s', $result['response']['status']
+                ));
             }
         }
 

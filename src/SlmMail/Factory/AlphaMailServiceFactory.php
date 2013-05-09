@@ -3,11 +3,11 @@
 namespace SlmMail\Factory;
 
 use SlmMail\Factory\Exception\RuntimeException;
-use SlmMail\Service\MandrillService;
+use SlmMail\Service\AlphaMailService;
 use Zend\ServiceManager\FactoryInterface;
 use Zend\ServiceManager\ServiceLocatorInterface;
 
-class MandrillServiceFactory implements FactoryInterface
+class AlphaMailServiceFactory implements FactoryInterface
 {
     /**
      * {@inheritDoc}
@@ -16,13 +16,14 @@ class MandrillServiceFactory implements FactoryInterface
     {
         $config = $serviceLocator->get('Config');
 
-        if (!isset($config['slm_mail']['mandrill'])) {
+        if (!isset($config['slm_mail']['alpha_mail'])) {
             throw new RuntimeException(
-                'Config for Mandrill is not set, did you copy config file into your config/autoload folder ?'
+                'Config for AlphaMail is not set, did you copy config file into your config/autoload folder ?'
             );
         }
 
-        $service = new MandrillService($config['slm_mail']['mandrill']['key']);
+        $config  = $config['slm_mail']['alpha_mail'];
+        $service = new AlphaMailService($config['username'], $config['key']);
 
         $client  = $serviceLocator->get('SlmMail\Http\Client');
         $service->setClient($client);

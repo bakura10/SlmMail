@@ -14,7 +14,7 @@ class PostmarkService extends AbstractMailService
     /**
      * API endpoint
      */
-    const API_ENDPOINT = 'http://api.postmarkapp.com';
+    const API_ENDPOINT = 'https://api.postmarkapp.com';
 
     /**
      * Postmark supports a maximum of 20 recipients per messages
@@ -232,7 +232,8 @@ class PostmarkService extends AbstractMailService
         $response = $this->prepareHttpClient('/bounces/' . $id . '/dump')
                          ->send();
 
-        return $this->parseResponse($response)['Body'];
+        $result = $this->parseResponse($response);
+        return $result['Body'];
     }
 
     /**
@@ -300,9 +301,11 @@ class PostmarkService extends AbstractMailService
 
         switch ($response->getStatusCode()) {
             case 401:
-                throw new Exception\InvalidCredentialsException('Authentication error: missing or incorrect API Key header');
+                throw new Exception\InvalidCredentialsException('Authentication error: missing or incorrect Postmark API Key header');
             case 422:
-                throw new Exception\ValidationErrorException($result['Message'], $result['ErrorCode']);
+                throw new Exception\ValidationErrorException(sprintf(
+                    'An error occured on Postmark (error code %s), message: %s', $result['ErrorCode'], $result['Message']
+                ));
             case 500:
                 throw new Exception\RuntimeException('Postmark server error, please try again');
             default:
